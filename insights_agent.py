@@ -1,4 +1,12 @@
 # insights_agent.py
+
+# --- INÍCIO HACK DE COMPATIBILIDADE DE PATH ---
+import sys, os
+_local_path = r"C:\Users\marcu\AppData\Local\Programs\Python\Python313\Lib\site-packages"
+if os.path.exists(_local_path) and _local_path not in sys.path:
+    sys.path.append(_local_path)
+# --- FIM HACK DE COMPATIBILIDADE DE PATH ---
+
 import os
 import json
 from openai import OpenAI

@@ -1,3 +1,11 @@
+
+# --- INÍCIO HACK DE COMPATIBILIDADE DE PATH ---
+import sys, os
+_local_path = r"C:\Users\marcu\AppData\Local\Programs\Python\Python313\Lib\site-packages"
+if os.path.exists(_local_path) and _local_path not in sys.path:
+    sys.path.append(_local_path)
+# --- FIM HACK DE COMPATIBILIDADE DE PATH ---
+
 import os
 import streamlit as st
 import pandas as pd
@@ -262,8 +270,13 @@ c3.metric("Negativas", (filtrado["sentimento"] == "negativo").sum())
 st.subheader("📋 Mensagens")
 st.dataframe(filtrado, use_container_width=True)
 
-st.subheader("📈 Distribuição de Sentimentos")
-st.bar_chart(filtrado["sentimento"].value_counts())
+st.subheader("📈 Evolução do Sentimento no Tempo")
+if not filtrado.empty:
+    # Ordena por data para garantir linha cronológica correta
+    chart_df = filtrado.sort_values("datahora")[["datahora", "score"]]
+    st.line_chart(chart_df.set_index("datahora"), height=250)
+else:
+    st.info("Sem dados suficientes para gerar o gráfico.")
 
 csv = baixar_csv(filtrado)
 st.download_button("📥 Baixar CSV", csv, "mensagens_filtradas.csv", "text/csv")

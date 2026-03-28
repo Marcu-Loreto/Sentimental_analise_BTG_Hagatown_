@@ -383,25 +383,30 @@ def tokenize_pt(texto: str, corrigir: bool = True):
 
 
 @st.cache_data(show_spinner="☁️ Gerando nuvem de palavras...")
-def gerar_wordcloud(corpus_text: str, width: int = 450, height: int = 280):
-    """Gera WordCloud a partir do corpus."""
-    if not corpus_text.strip():
-        return None, "Digite algo para iniciar a nuvem de palavras."
+def gerar_wordcloud(tokens: list, width: int = 450, height: int = 280):
+    """Gera WordCloud a partir de uma lista de tokens pré-processados."""
+    if not tokens:
+        return None, "Dados insuficientes para gerar a nuvem de palavras."
     
     if not _WORDCLOUD_AVAILABLE:
         return None, "Pacote 'wordcloud' não encontrado. Instale: pip install wordcloud"
     
     try:
+        # Unir tokens em uma string única para o WordCloud
+        text = " ".join(tokens)
+        
         wc = WordCloud(
             width=width,
             height=height,
             background_color="white",
-            collocations=False,
+            collocations=False, # Importante: tokens já estão limpos
             max_words=100,
             relative_scaling=0.5,
-            min_font_size=8
+            min_font_size=8,
+            # Passamos uma lista vazia de stopwords porque os tokens já foram filtrados no tokenize_pt
+            stopwords=set()
         )
-        wc.generate(corpus_text)
+        wc.generate(text)
         
         img = wc.to_image()
         buf = BytesIO()
@@ -419,8 +424,11 @@ def gerar_wordcloud(corpus_text: str, width: int = 450, height: int = 280):
 # ═══════════════════════════════════════════════════════════════
 
 @st.cache_data(show_spinner="🔗 Construindo grafo...")
-def build_word_graph(_token_sequences, min_edge_weight: int = 1, max_nodes: int = 500):
-    """Constrói grafo de coocorrências com limite de nós."""
+def build_word_graph(_token_sequences, min_edge_weight: int = 1, max_nodes: int = 500, window_size: int = 3):
+    """
+    Constrói grafo de coocorrências usando janela deslizante (Sliding Window).
+    Isso captura relacionamentos entre palavras próximas, não apenas adjacentes.
+    """
     if not _GRAPH_AVAILABLE:
         return None
     
@@ -430,12 +438,16 @@ def build_word_graph(_token_sequences, min_edge_weight: int = 1, max_nodes: int 
     
     for seq in _token_sequences:
         node_counts.update(seq)
-        for i in range(len(seq) - 1):
-            a, b = seq[i], seq[i + 1]
-            if a == b:
-                continue
-            edge = tuple(sorted((a, b)))
-            edge_counts[edge] += 1
+        
+        # Sliding Window para capturar coocorrências
+        for i in range(len(seq)):
+            # Define o range da janela (palavras à frente)
+            for j in range(i + 1, min(i + window_size, len(seq))):
+                a, b = seq[i], seq[j]
+                if a == b:
+                    continue
+                edge = tuple(sorted((a, b)))
+                edge_counts[edge] += 1
     
     if len(node_counts) > max_nodes:
         top_words = set([w for w, _ in node_counts.most_common(max_nodes)])
@@ -1352,23 +1364,28 @@ with wc_container:
     corpus = st.session_state.get("user_corpus_text", "")
     
     if corpus.strip():
-        buf, err = gerar_wordcloud(corpus)
+        # Passamos a lista de tokens (que já foi filtrada) para garantir consistência
+        all_tokens = []
+        for seq in st.session_state.get("user_token_sequences", []):
+            all_tokens.extend(seq)
+            
+        buf, err = gerar_wordcloud(all_tokens)
         
         if err:
             st.warning(err)
         elif buf:
-            st.image(buf, caption="Nuvem de Palavras (Corrigidas)",use_container_width=True)
+            st.image(buf, caption="Nuvem de Palavras (Filtradas e Corrigidas)", use_container_width=True)
             
             st.download_button(
                 "📥 Baixar PNG",
                 data=buf,
                 file_name=f"wordcloud_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
                 mime="image/png",
-               use_container_width=True,
+                use_container_width=True,
             )
             
-            tokens_unicos = len(set(corpus.split()))
-            tokens_totais = len(corpus.split())
+            tokens_unicos = len(set(all_tokens))
+            tokens_totais = len(all_tokens)
             st.caption(f"📊 {tokens_totais} palavras | {tokens_unicos} únicas")
     else:
         # Nuvem será gerada automaticamente

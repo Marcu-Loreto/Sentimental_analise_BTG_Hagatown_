@@ -12,6 +12,7 @@ except Exception as e:
     print(f"Erro de import PostgreSQL: {e}")
 
 
+@st.cache_data(ttl=60, show_spinner="📊 Carregando dados do banco...")
 def carregar_dados():
     if not Database:
         return pd.DataFrame()
@@ -26,6 +27,7 @@ def carregar_dados():
         query = """
         SELECT 
             id, 
+            session_id,
             created_at as datahora, 
             content as texto, 
             COALESCE(metadata->>'sentimento', 'neutro') as sentimento,
@@ -50,6 +52,12 @@ def carregar_dados():
     if "datahora" in df.columns:
         df["datahora"] = pd.to_datetime(df["datahora"], errors="coerce")
     return df
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_sessoes_cached():
+    if not Database:
+        return []
+    return Database.list_sessions(limit=100)
 
 def baixar_csv(df):
     return df.to_csv(index=False).encode("utf-8")
@@ -77,6 +85,52 @@ if df.empty:
     st.warning("Nenhuma mensagem encontrada no banco de dados.")
     st.stop()
 
+# ======= FILTROS E SELEÇÃO DE SESSÃO =======
+st.sidebar.divider()
+st.sidebar.header("🎯 Filtros e Sessão")
+
+# Seletor de Sessão
+sessoes = listar_sessoes_cached()
+sessao_selecionada = st.sidebar.selectbox(
+    "Selecionar Conversa",
+    options=["Todas as Conversas"] + sessoes,
+    help="Escolha uma conversa específica para analisar ou veja o consolidado."
+)
+
+# Filtros de Sentimento e Data
+sent_opts = sorted([x for x in df["sentimento"].dropna().unique()])
+selecionados = st.sidebar.multiselect("Sentimentos", options=sent_opts, default=sent_opts)
+
+min_dt = df["datahora"].min().date() if df["datahora"].notna().any() else datetime.now().date()
+max_dt = df["datahora"].max().date() if df["datahora"].notna().any() else datetime.now().date()
+d_ini = st.sidebar.date_input("Data inicial", min_dt)
+d_fim = st.sidebar.date_input("Data final", max_dt)
+
+# Aplicação da Máscara de Filtros
+mask = (
+    df["sentimento"].isin(selecionados)
+    & (df["datahora"].dt.date >= d_ini)
+    & (df["datahora"].dt.date <= d_fim)
+)
+
+if sessao_selecionada != "Todas as Conversas":
+    mask = mask & (df["session_id"] == sessao_selecionada)
+
+filtrado = df.loc[mask].copy()
+
+# Botões de Ação
+col_btn1, col_btn2 = st.sidebar.columns(2)
+if col_btn1.button("🗑️ Limpar Chat", use_container_width=True):
+    st.session_state.insights_chat = []
+    st.session_state.ultimo_contexto_analisado = ""
+    st.rerun()
+
+if col_btn2.button("🔄 Cache", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
+
+st.sidebar.divider()
+
 # Inicializa o histórico de chat da barra lateral na sessão
 if "insights_chat" not in st.session_state:
     st.session_state.insights_chat = []
@@ -102,11 +156,11 @@ if prompt := st.sidebar.chat_input("Pergunte algo ao consultor..."):
         
     with st.sidebar.chat_message("assistant"):
         with st.spinner("Analisando..."):
-            # Preparar o contexto de dados atuais do DataFrame para dar embasamento à IA
-            mensagens_amostra = df["texto"].dropna().tail(30).tolist()
+            # Preparar o contexto de dados do 'filtrado' (respeitando a sessão selecionada)
+            mensagens_amostra = filtrado["texto"].dropna().tail(30).tolist()
             
             # Aqui focamos apenas nas palavras (nuvem de palavras)!
-            todas_palavras = " ".join(df["texto"].dropna().tolist()).lower().split()
+            todas_palavras = " ".join(filtrado["texto"].dropna().tolist()).lower().split()
             
             # Filtro básico (removendo palavras muito curtas)
             palavras_filtro = [p for p in todas_palavras if len(p) > 4]
@@ -160,22 +214,22 @@ Seja extremamente objetivo e use formatação clara (bullet points) focando estr
             st.session_state.insights_chat.append({"role": "assistant", "content": resposta})
 
 # ====== ANÁLISE PRÓ-ATIVA EM TEMPO REAL ======
-# Apenas dispara relatorio automatico no painel principal se o contexto mudou
-todas_mensagens_str = "".join(df["texto"].dropna().tolist()) if not df.empty else ""
+# Apenas dispara relatorio automatico no painel principal se o contexto (filtrado) mudou
+todas_mensagens_str = "".join(filtrado["texto"].dropna().tolist()) if not filtrado.empty else ""
 if "ultimo_contexto_analisado" not in st.session_state:
     st.session_state.ultimo_contexto_analisado = ""
 
 st.sidebar.divider()
-st.sidebar.subheader("🤖 Novo Relatorio do Gestor (Consultor AI)")
-st.sidebar.info("Clique abaixo ou aguarde novas mensagens para gerar o relatório atualizado.")
+st.sidebar.subheader("🤖 Novo Relatorio do Gestor")
+st.sidebar.info("Clique abaixo para gerar o relatório da seleção atual.")
 
-if st.sidebar.button("🧠 Gerar Relatório de Insights e Próximos Passos", type="primary", use_container_width=True) or (todas_mensagens_str != st.session_state.ultimo_contexto_analisado and st.session_state.ultimo_contexto_analisado != ""):
+if st.sidebar.button("🧠 Gerar Relatório de Insights", type="primary", use_container_width=True) or (todas_mensagens_str != st.session_state.ultimo_contexto_analisado and st.session_state.ultimo_contexto_analisado != ""):
     st.session_state.ultimo_contexto_analisado = todas_mensagens_str
     
-    with st.sidebar.status("Agente Consultor está analisando as novas mensagens...", expanded=True) as status:
-        # Prepara contexto
-        mensagens_amostra = df["texto"].dropna().tail(30).tolist()
-        todas_palavras = " ".join(df["texto"].dropna().tolist()).lower().split()
+    with st.sidebar.status("Analisando mensagens selecionadas...", expanded=True) as status:
+        # Prepara contexto base do filtrado
+        mensagens_amostra = filtrado["texto"].dropna().tail(30).tolist()
+        todas_palavras = " ".join(filtrado["texto"].dropna().tolist()).lower().split()
         palavras_filtro = [p for p in todas_palavras if len(p) > 4]
         from collections import Counter
         palavras_frequentes_nuvem = [word for word, count in Counter(palavras_filtro).most_common(25)]
@@ -199,23 +253,6 @@ if st.sidebar.button("🧠 Gerar Relatório de Insights e Próximos Passos", typ
             status.update(label="Erro!", state="error")
 
 
-st.sidebar.divider()
-
-st.sidebar.header("Filtros")
-sent_opts = sorted([x for x in df["sentimento"].dropna().unique()])
-selecionados = st.sidebar.multiselect("Sentimentos", options=sent_opts, default=sent_opts)
-
-min_dt = df["datahora"].min().date() if df["datahora"].notna().any() else datetime.now().date()
-max_dt = df["datahora"].max().date() if df["datahora"].notna().any() else datetime.now().date()
-d_ini = st.sidebar.date_input("Data inicial", min_dt)
-d_fim = st.sidebar.date_input("Data final", max_dt)
-
-mask = (
-    df["sentimento"].isin(selecionados)
-    & (df["datahora"].dt.date >= d_ini)
-    & (df["datahora"].dt.date <= d_fim)
-)
-filtrado = df.loc[mask].copy()
 
 c1, c2, c3 = st.columns(3)
 c1.metric("Total", len(filtrado))

@@ -32,15 +32,22 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - API_KEY=${API_KEY:-change-me-in-production}
+      - API_KEY=${API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-    volumes:
-      - ./api.py:/app/api.py
-      - ./shared_state.py:/app/shared_state.py
-      - ./shared_state.json:/app/shared_state.json
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - OPENAI_SENTIMENT_MODEL=${OPENAI_SENTIMENT_MODEL:-gpt-4o-mini}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-atendimento_db}
+      - POSTGRES_USER=${POSTGRES_USER:-atendimento_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atendimento_pass}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - atendimento_network
@@ -50,7 +57,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Streamlit - Interface do usuário
+  # Streamlit - App principal (chat + insights)
   streamlit:
     build:
       context: .
@@ -63,20 +70,79 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-    volumes:
-      - ./app.py:/app/app.py
-      - ./shared_state.py:/app/shared_state.py
-      - ./shared_state.json:/app/shared_state.json
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - OPENAI_SENTIMENT_MODEL=${OPENAI_SENTIMENT_MODEL:-gpt-4o-mini}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-atendimento_db}
+      - POSTGRES_USER=${POSTGRES_USER:-atendimento_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atendimento_pass}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       api:
         condition: service_healthy
     networks:
       - atendimento_network
 
-  # Nginx - Reverse Proxy (opcional para produção)
+  # Dashboard N8N - Painel de sentimentos
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: atendimento_dashboard
+    restart: unless-stopped
+    ports:
+      - "8503:8503"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-nano}
+      - OPENAI_SENTIMENT_MODEL=${OPENAI_SENTIMENT_MODEL:-gpt-4o-mini}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-atendimento_db}
+      - POSTGRES_USER=${POSTGRES_USER:-atendimento_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atendimento_pass}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - atendimento_network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: atendimento_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-atendimento_db}
+      POSTGRES_USER: ${POSTGRES_USER:-atendimento_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atendimento_pass}
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-atendimento_user}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - atendimento_network
+
+  # Nginx - Reverse Proxy
   nginx:
     image: nginx:alpine
     container_name: atendimento_nginx
@@ -90,12 +156,13 @@ services:
     depends_on:
       - api
       - streamlit
+      - dashboard
     networks:
       - atendimento_network
 
 volumes:
   redis_data:
-    driver: local
+  pgdata:
 
 networks:
   atendimento_network:

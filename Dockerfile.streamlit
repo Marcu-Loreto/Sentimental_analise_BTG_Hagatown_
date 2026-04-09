@@ -1,27 +1,35 @@
-# Dockerfile.streamlit
+# Dockerfile.streamlit — App principal (chat + análise)
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instala dependências do sistema (incluindo libpq para PostgreSQL)
+# Dependências de sistema
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia requirements
+# Instala dependências Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copia TODOS os arquivos Python
+# Copia módulos da aplicação
 COPY database.py .
 COPY shared_state.py .
+COPY analysis.py .
+COPY neo4j_graph.py .
+COPY insights_agent.py .
 COPY app.py .
 
-# Expõe porta
+# Copia pastas necessárias
+COPY prompt/ ./prompt/
+COPY pages/ ./pages/
+
 EXPOSE 8502
 
-# Comando de inicialização
 CMD ["streamlit", "run", "app.py", "--server.port=8502", "--server.address=0.0.0.0", "--server.headless=true"]

@@ -1004,8 +1004,11 @@ if mensagem_usuario:
     
     # Tenta extrair o nome do usuário se não estiver definido
     if not st.session_state.get("user_name"):
-        # Regex simples para capturar nomes após padrões comuns
-        match = re.search(r"(?:meu nome é|me chamo|sou o|sou a)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)", texto_corrigido, re.IGNORECASE)
+        # Regex para capturar nomes após padrões comuns de apresentação
+        match = re.search(
+            r"(?:meu nome é|me chamo|sou o|sou a|aqui é o|aqui é a|aqui é|eu sou o|eu sou a|eu sou)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)",
+            texto_corrigido, re.IGNORECASE
+        )
         if match:
             st.session_state["user_name"] = match.group(1).strip().title()
     

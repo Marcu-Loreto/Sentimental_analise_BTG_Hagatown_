@@ -1,0 +1,52 @@
+{
+  "sessions": {
+    "8ff2f501-e514-40e4-855e-c67852a37bcb": {
+      "mensagens": [
+        {
+          "role": "user",
+          "content": "Olá, meu nome é Roodrigo e quero saber das minhas máquinas.",
+          "timestamp": "2026-04-10T12:54:49.372210-03:00",
+          "metadata": {
+            "origem": "app_streamlit_chat",
+            "user_name": "Roodrigo",
+            "sentimento": "neutro",
+            "confianca": "0.85",
+            "emocao": "nenhuma",
+            "score": "0.0"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Olá, Roodrigo! Prazer em conhecê-lo. Gostaria de entender melhor sobre suas máquinas — você pode me explicar qual o problema ou o que precisa de ajuda? Assim, posso orientar você da melhor forma possível.",
+          "timestamp": "2026-04-10T12:54:51.278489-03:00",
+          "metadata": {
+            "origem": "app_streamlit_chat",
+            "user_name": "Roodrigo"
+          }
+        },
+        {
+          "role": "user",
+          "content": "Elas estavam sem ligar para ele, pois, para um orçamento, já tem 4 semanas e nada.",
+          "timestamp": "2026-04-10T12:55:37.850249-03:00",
+          "metadata": {
+            "origem": "app_streamlit_chat",
+            "user_name": "Roodrigo",
+            "sentimento": "negativo",
+            "confianca": "0.85",
+            "emocao": "frustração",
+            "score": "-0.85"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "Entendo, Roodrigo. Parece que suas máquinas estão sem ligar e você já aguardou há quatro semanas sem uma resposta sobre o orçamento. Peço desculpas pela demora e pelo transtorno. \n\nVamos verificar o status do seu serviço imediatamente. Você poderia me informar o nome completo ou algum dado de identificação das máquinas ou do orçamento? Assim, posso localizar tudo aqui e te dar uma atualização clara sobre o que está acontecendo e os próximos passos.  \n\nEstou aqui para ajudar a resolver isso o mais rápido possível.",
+          "timestamp": "2026-04-10T12:55:39.858368-03:00",
+          "metadata": {
+            "origem": "app_streamlit_chat",
+            "user_name": "Roodrigo"
+          }
+        }
+      ]
+    }
+  }
+}

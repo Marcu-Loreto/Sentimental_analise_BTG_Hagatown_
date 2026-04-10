@@ -83,6 +83,10 @@ def baixar_csv(df):
     return df.to_csv(index=False).encode("utf-8")
 
 st.set_page_config(page_title="Dashboard de Mensagens", layout="wide")
+
+# Placeholder para o relatório de insights (será preenchido após os filtros)
+_relatorio_placeholder = st.container()
+
 st.title("📊 Dashboard de Análise de Mensagens")
 
 # ======= INSIGHTS DO GESTOR (BARRA LATERAL) ========
@@ -156,6 +160,19 @@ if sessao_selecionada != "Todas as Conversas":
     mask = mask & (df["session_id"] == sessao_selecionada)
 
 filtrado = df.loc[mask].copy()
+
+# ======= RELATÓRIO DE INSIGHTS (topo da página via placeholder) =======
+_selecao_atual = f"{sessao_selecionada}_{d_ini}_{d_fim}"
+if st.session_state.get("_selecao_relatorio") != _selecao_atual:
+    st.session_state.pop("ultimo_relatorio_insights", None)
+    st.session_state["_selecao_relatorio"] = _selecao_atual
+
+with _relatorio_placeholder:
+    if st.session_state.get("ultimo_relatorio_insights"):
+        _label_cliente = sessao_label if sessao_label != "Todas as Conversas" else "Todos os clientes"
+        with st.expander(f"🧠 Relatório de Insights — {_label_cliente} ({d_ini} a {d_fim})", expanded=True):
+            st.markdown(st.session_state["ultimo_relatorio_insights"])
+        st.divider()
 
 # Botões de Ação
 col_btn1, col_btn2 = st.sidebar.columns(2)
@@ -309,6 +326,7 @@ if st.sidebar.button("🧠 Gerar Relatório de Insights", type="primary", use_co
             # Salva no session_state para exibir na área principal (abaixo do grafo)
             st.session_state["ultimo_relatorio_insights"] = relatorio
             status.update(label="Concluído!", state="complete")
+            st.rerun()
         except Exception as e:
             st.sidebar.error(f"Erro ao gerar análise: {e}")
             status.update(label="Erro!", state="error")
@@ -497,12 +515,6 @@ elif _token_sequences and len(_token_sequences) > 0:
         st.warning(f"Erro ao gerar grafo: {e}")
 else:
     st.info("Sem dados suficientes para gerar o grafo.")
-
-# ======= RELATÓRIO DE INSIGHTS (área principal) =======
-if st.session_state.get("ultimo_relatorio_insights"):
-    st.divider()
-    st.subheader("🧠 Relatório Estratégico de Insights")
-    st.markdown(st.session_state["ultimo_relatorio_insights"])
 
 # ======= EVOLUÇÃO DO SENTIMENTO NO TEMPO =======
 st.subheader("📈 Evolução do Sentimento no Tempo")

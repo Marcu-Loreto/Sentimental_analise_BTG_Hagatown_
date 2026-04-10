@@ -281,8 +281,6 @@ if prompt := st.sidebar.chat_input("Pergunte algo ao consultor..."):
                         Database.add_insight(", ".join(palavras_frequentes_nuvem), resposta)
                 except Exception as e:
                     resposta = f"❌ Erro: {e}"
-            except Exception as e:
-                resposta = f"❌ Erro ao consultar a API: {e}"
                 
             st.markdown(resposta)
             st.session_state.insights_chat.append({"role": "assistant", "content": resposta})
